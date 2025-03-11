@@ -1,25 +1,25 @@
 const express = require('express');
-const { Configuration, OpenAIApi } = require('openai');
+const qrcode = require('qrcode-terminal');
+const { OpenAI } = require('openai');
 const fs = require('fs');
 const {Client} = require("whatsapp-web.js");
 const dotevn = require('dotenv');
 dotevn.config();
 const app = express();
 
-const config = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
-    timeout: 10000,
-}); 
 
-const openai = new OpenAIApi(config);
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+});
 
 const client = new Client();
 
-
+// const chatbot = async (msg) => {   }
 
 client.on('qr', (qr) => {
     // Generate and scan this code with your phone
-    console.log('QR RECEIVED', qr);
+    // console.log('QR RECEIVED', qr);
+    qrcode.generate(qr, {small: true});
 });
 
 client.on('ready', () => {
