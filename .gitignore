@@ -1,3 +1,4 @@
 /node_modules
 .env
 /.wwebjs_cache
+/voice_notes
