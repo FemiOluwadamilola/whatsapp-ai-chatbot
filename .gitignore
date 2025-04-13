@@ -1,4 +1,5 @@
 /node_modules
 .env
 /.wwebjs_cache
-/voice_notes
+/src/voice_notes
+/src/Tomato_Image_Model
