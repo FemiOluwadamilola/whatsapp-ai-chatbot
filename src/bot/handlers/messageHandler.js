@@ -1,141 +1,134 @@
 const fs = require("fs");
 const path = require("path");
-const { chatWithAI, aiVoice, isAgricultureRelatedAI } = require("../../services/ai");
-const { predictImage } = require("../../services/imagePrediction");
-const { convertOpusToWav, speechToText } = require("../../services/speech");
-const { MessageMedia } = require("whatsapp-web.js");
-const logger = require("../../utils/logger");
-
-const voiceNotesDir = path.join(__dirname, "../../voice_notes");
-
-const agriKeywords = [
-    'plant', 'farming', 'farm', 'agriculture', 'soil', 'crop', 'harvest', 'fertilizer',
-    'compost', 'greenhouse', 'irrigation', 'pesticide', 'disease', 'germination', 'seeds',
-    'livestock', 'tractor', 'agronomy', 'climate', 'weather', 'yield', 'weeding', 'organic'
-  ];
-  
-  function containsAgriKeyword(text) {
-    const cleaned = text.toLowerCase();
-    return agriKeywords.some(keyword => cleaned.includes(keyword));
-  }
+const {
+  chatWithAI,
+  isAgricultureRelatedAI,
+} = require("../../services/ai");
+const {getFarmerByPhone, createFarmer} = require("../../services/memory");
+const getWeatherForecast = require("../../services/weather");
+const extractLocation = require("../../utils/extractLocation");
+// const handleImage = require("./imageHandler");
+const handleAudio = require("./audioHandler");
+const containsAgriKeyword = require("../../utils/containsAgriKeyword");
+const log = require("../../utils/logger");
 
 const handleMessage = async (msg, client) => {
   try {
+    let userText = msg.body.trim();
+    let context = "";
+
+    // 🛠️ Handle quoted messages with safe fallback
+    if (msg.hasQuotedMsg) {
+      try {
+        const quotedMsg = await msg.getQuotedMessage();
+        const quotedText = quotedMsg?.body?.trim();
+
+        if (quotedText) {
+          context = `User is replying to this message: "${quotedText}"\nUser's follow-up question: "${userText}"`;
+          // log.info(`Quoted Context: ${context}`);
+        } else {
+          context = userText;
+          log.warn("Quoted message was empty or missing body.");
+        }
+      } catch (quoteErr) {
+        log.warn(`Could not get quoted message: ${quoteErr.message}`);
+        context = userText;
+      }
+    } else {
+      context = userText;
+    }
+
+    // 📷 Handle media
     if (msg.hasMedia) {
       const media = await msg.downloadMedia();
-      if (!media || !media.data)
-        return msg.reply("⚠️ Couldn't download media.");
-
+      if (!media || !media.data) return msg.reply("⚠️ Couldn't download media.");
       const buffer = Buffer.from(media.data, "base64");
 
-      if (media.mimetype.includes("image")) {
-        const filePath = path.join(voiceNotesDir, `img_${Date.now()}.jpg`);
-        fs.writeFileSync(filePath, buffer);
-        try {
-          const prediction = await predictImage(filePath);
-          await msg.reply(`🧠 Prediction: *${prediction}*`);
-        } catch (err) {
-          logger.error(`Image Prediction Error: ${err}`);
-          msg.reply("❌ Failed to process image.");
-        } finally {
-          fs.unlinkSync(filePath);
-        }
-      } else if (
+      // Uncomment this when image handling is ready
+      // if (media.mimetype.includes("image")) {
+      //   return await handleImage(buffer, msg);
+      // }
+
+      if (
         media.mimetype.includes("audio") ||
         media.filename?.endsWith(".opus")
       ) {
-        const inputPath = path.join(voiceNotesDir, `voice_${Date.now()}.opus`);
-        fs.writeFileSync(inputPath, buffer);
-
-        const wavPath = await convertOpusToWav(inputPath);
-        const text = await speechToText(wavPath);
-
-        if (!text) return msg.reply("⚠️ Couldn't transcribe voice note.");
-        const response = await chatWithAI(text);
-
-        if (!response) return msg.reply("⚠️ AI response failed.");
-        const voicePath = await aiVoice(response, voiceNotesDir);
-        const voiceMedia = MessageMedia.fromFilePath(voicePath);
-
-        await client.sendMessage(msg.from, voiceMedia, {
-          sendAudioAsVoice: true,
-        });
-
-        fs.unlinkSync(inputPath);
-        fs.unlinkSync(wavPath);
-        fs.unlinkSync(voicePath);
-      }
-    } else {
-      // 🔍 Keyword & Command Responses
-      const text = msg.body.trim().toLowerCase();
-      if (!msg.hasMedia) {
-        // Friendly greetings
-        if (/^(hi|hello|hey)\b/i.test(text)) {
-          return msg.reply(
-            "👋 Hello! I'm MagFarm How can I assist you with your farming needs today?"
-          );
-        }
-
-        // // Help command
-        // if (text === "/help") {
-        //   return msg.reply(
-        //     "🆘 *Help Menu:*\n" +
-        //       "📤 Send a voice note to get a voice reply\n" +
-        //       "💬 Type a message to chat with AI\n" +
-        //       "🖼️ Send an image to get it described\n" +
-        //       "ℹ️ Type `/about` to learn more"
-        //   );
-        // }
-
-        // // About command
-        // if (text === "/about") {
-        //   return msg.reply(
-        //     "🤖 I'm an AI-powered assistant built with WhatsApp, GPT, and speech tools.\n" +
-        //       "🎙️ I can understand your voice, respond back in voice, and even describe images!\n" +
-        //       "🌱 Created for smart, interactive conversations."
-        //   );
-        // }
-
-        // Small talk
-        if (text.includes("who are you") || text.includes("what are you")) {
-          return msg.reply(
-            "I am MagFarm, your AI assistant specialized in farming and agriculture."
-          );
-        }
-
-        if (text.includes("what can you do")) {
-          return msg.reply(
-            "I am MagFarm, your assistant for farming and agriculture. I can provide advice on planting, pest management, soil health, and more!"
-          );
-        }
-
-        if (text.includes("thank you") || text.includes("thanks")) {
-          return msg.reply("🙏 You're very welcome! How can I assist you further?");
-        }
+        return await handleAudio(buffer, msg, client);
       }
 
-      if (!containsAgriKeyword(text)) {
-        // 🧠 Fallback: AI topic check
-        const isAgriRelated = await isAgricultureRelatedAI(text);
-        if (!isAgriRelated) {
-          return msg.reply("🌾 I'm here to help with agriculture and planting topics only. Try asking about crops, soil, or farm-related issues!");
-        }
-      }
-    
-      const aiResponse = await chatWithAI(text);
-
-      if (!aiResponse) {
-        await msg.reply(
-          "⚠️ MagFarm is currently unavailable. Please try again later."
-        );
-        return;
-      }
-
-      await msg.reply(aiResponse);
+      return msg.reply("❌ Unsupported media type.");
     }
+
+    const contact = await msg.getContact();
+
+    // 👋 Greetings & small talk
+    if (/^(hi|hello|hey)\b/i.test(userText)) {
+      const name = contact.pushname || contact.verifiedName || "there";
+      return msg.reply(`👋 Hello ${name}! I'm MagFarm How can I assist you with your farming needs today?`);
+    }
+
+    if (userText.includes("what is magfarm")) {
+      return msg.reply("MagFarm is your AI farming assistant, helping with crops disease identification, pests, soil, and planting tips.");
+    }
+
+    if (userText.includes("who are you") || userText.includes("what are you")) {
+      return msg.reply("I'm MagFarm, an AI assistant specialized in agriculture.");
+    }
+
+    if (userText.includes("what can you do")) {
+      return msg.reply("I can detect crop diseases, give farming tips, predict weather, and more.");
+    }
+
+    if (userText.includes("thank you") || userText.includes("thanks")) {
+      return msg.reply("🙏 You're welcome! How else can I help?");
+    }
+
+    // Fetch weather info
+    if (userText.includes("weather update")) {
+      const phone = contact.number; // Get the phone number of the user
+      let location = extractLocation(userText); // Try to extract location from the message
+      const memory = await getFarmerByPhone(phone); // Retrieve saved memory for this farmer, if available
+
+      // If no location in the message, check if we have a saved location
+      if (!location && memory?.location) {
+        location = memory.location;
+      }
+
+      // If still no location, ask the farmer to provide one
+      if (!location) {
+        return msg.reply("🌍 Please tell me your farm's location (e.g. 'Weather update in Lagos') so I can provide accurate weather updates.");
+      }
+
+      // If the farmer provided a location, we save it
+      if (!memory?.location) {
+        await createFarmer({ phone, location });
+        return msg.reply(`✅ Your farm's location has been saved as ${location}, to provide better weather updates in the future.(You can change it anytime). Now for quick weather updates, just say 'weather update'`);
+      }
+
+      // Fetch and return weather for the location
+      const weather = await getWeatherForecast(location);
+      return msg.reply(weather);
+    }
+    
+
+    // 🌾 Agriculture check
+    if (!containsAgriKeyword(userText)) {
+      const isAgri = await isAgricultureRelatedAI(userText);
+      if (!isAgri) {
+        return msg.reply("🌾 I only handle farm-related questions. Ask me about crops, pests, soil, etc.");
+      }
+    }
+
+    // 🤖 Chat with AI using context
+    const aiResponse = await chatWithAI(context);
+    if (!aiResponse) {
+      return msg.reply("⚠️ MagFarm is unavailable right now. Try again later.");
+    }
+
+    await msg.reply(aiResponse);
   } catch (err) {
-    logger.error(`Unhandled Error: ${err}`);
-    msg.reply("❌ Something went wrong.");
+    log.error(`Unhandled Error: ${err.message}`);
+    await msg.reply("❌ Something went wrong while handling your request.");
   }
 };
 

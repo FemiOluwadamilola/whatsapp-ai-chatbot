@@ -1,6 +1,9 @@
 const { AssemblyAI } = require("assemblyai");
 const ffmpeg = require("fluent-ffmpeg");
-const logger = require("../utils/logger");
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const log = require("../utils/logger");
+
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const assemblyai = new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY });
 
@@ -14,7 +17,7 @@ const convertOpusToWav = (inputPath) => {
             .format('wav')
             .on('end', () => resolve(outputPath))
             .on('error', err => {
-                logger.error(`FFmpeg Error: ${err}`);
+                log.error(`FFmpeg Error: ${err}`);
                 reject(err);
             })
             .save(outputPath);
@@ -27,7 +30,7 @@ const speechToText = async (wavPath) => {
         const response = await assemblyai.transcripts.transcribe({ audio: fileBuffer });
         return response.text;
     } catch (err) {
-        logger.error(`Speech-to-Text Error: ${err.message}`);
+        log.error(`Speech-to-Text Error: ${err.message}`);
         return null;
     }
 };

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+</head>
+
+<body>
+  <img id="image" crossorigin="anonymous" style="display: none" />
+  <script>
+    // This script loads a TensorFlow.js model and provides a function to make predictions from an image URL.
+    // The model is loaded when the page opens, and the predictFromUrl function can be called with an image URL to get predictions.
+    let model;
+    let modelLoaded = false;
+
+    const modelPath = 'model/model.json'; // Path to your model
+
+    // Load the model when the page is ready
+    async function loadModel() {
+      model = await tf.loadLayersModel(modelPath);; // Path to your model
+      modelLoaded = true;
+    }
+
+    // Universal image preprocessing function
+    function preprocessImage(img, model) {
+      const inputShape = model.inputs[0].shape;
+      const height = inputShape[1];
+      const width = inputShape[2];
+      const channels = inputShape[3];
+
+      let tensor = tf.browser.fromPixels(img);
+
+      // If the model expects grayscale but image is RGB, convert to grayscale
+      if (channels === 1 && tensor.shape[2] === 3) {
+        tensor = tf.image.rgbToGrayscale(tensor);
+      }
+
+      tensor = tensor
+        .resizeNearestNeighbor([height, width])
+        .toFloat()
+        .div(tf.scalar(255.0))
+        .expandDims(); // Shape becomes [1, height, width, channels]
+
+      return tensor;
+    }
+
+    // Function to make a prediction from an image URL
+    async function predictFromUrl(imageUrl) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous'; // Ensure the image loads correctly from a URL
+        img.src = imageUrl;
+
+        img.onload = async () => {
+          try {
+            // Preprocess the image
+            const tensor = preprocessImage(img, model);
+
+            // Run prediction
+            const prediction = model.predict(tensor);
+            const result = await prediction.data();
+
+            // Define your class labels (should match your model classes)
+            const labels = ["Apple___Apple_scab", "Apple___Black_rot", "Apple___Cedar_apple_rust",
+              "Apple___healthy", "Blueberry___healthy", "Cherry_(including_sour)___Powdery_mildew",
+              "Cherry_(including_sour)___healthy", "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+              "Corn_(maize)___Common_rust_", "Corn_(maize)___Northern_Leaf_Blight",
+              "Corn_(maize)___healthy", "Grape___Black_rot", "Grape___Esca_(Black_Measles)",
+              "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)", "Grape___healthy",
+              "Orange___Haunglongbing_(Citrus_greening)", "Peach___Bacterial_spot", "Peach___healthy",
+              "Pepper,_bell___Bacterial_spot", "Pepper,_bell___healthy", "Potato___Early_blight",
+              "Potato___Late_blight", "Potato___healthy", "Raspberry___healthy", "Soybean___healthy",
+              "Squash___Powdery_mildew", "Strawberry___Leaf_scorch", "Strawberry___healthy",
+              "Tomato___Bacterial_spot", "Tomato___Early_blight", "Tomato___Late_blight",
+              "Tomato___Leaf_Mold", "Tomato___Septoria_leaf_spot",
+              "Tomato___Spider_mites Two-spotted_spider_mite", "Tomato___Target_Spot",
+              "Tomato___Tomato_Yellow_Leaf_Curl_Virus", "Tomato___Tomato_mosaic_virus", "Tomato___healthy"
+            ];
+
+            // Find the class with the highest confidence
+            const maxIndex = result.indexOf(Math.max(...result));
+
+            resolve({
+              label: labels[maxIndex],
+              confidence: result[maxIndex]
+            });
+          } catch (error) {
+            reject("Prediction error: " + error);
+          }
+        };
+
+        img.onerror = (err) => {
+          reject("Image load error: " + err);
+        };
+      });
+    }
+
+    // Load model when page is ready
+    loadModel();
+  </script>
+</body>
+
+</html>

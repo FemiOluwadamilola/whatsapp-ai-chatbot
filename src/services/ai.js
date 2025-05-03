@@ -1,9 +1,14 @@
 const { OpenAI } = require("openai");
 const gTTS = require("gtts");
 const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const path = require("path");
 const fs = require("fs");
-const logger = require("../utils/logger");
+const log = require("../utils/logger");
+const dotenv = require("dotenv");
+dotenv.config();
+
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -26,23 +31,35 @@ const isAgricultureRelatedAI = async (text) => {
       const reply = checkResponse.choices[0].message.content.trim().toLowerCase();
       return reply.startsWith('yes');
     } catch (err) {
-        logger.error(`AI Chat Error: ${err.message}`);
+        log.error(`AI Chat Error: ${err.message}`);
         return null;
     }
   }  
 
-const chatWithAI = async (text) => {
+  const chatWithAI = async (text) => {
     try {
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: text }]
-        });
-        return response.choices[0].message.content.trim().toLowerCase();
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: text }]
+      });
+  
+      let content = response.choices[0].message.content.trim();
+  
+      // Basic WhatsApp-style formatting
+      content = content
+        .replace(/^#+\s*(.*)/gm, '*$1*') // Convert Markdown headings to bold
+        .replace(/\*\*(.*?)\*\*/g, '*$1*') // bold
+        .replace(/__(.*?)__/g, '_$1_')     // italic
+        .replace(/~~(.*?)~~/g, '~$1~')     // strikethrough
+        .replace(/`(.*?)`/g, '```$1```');  // inline code to monospace block
+  
+      return content;
     } catch (err) {
-        logger.error(`AI Chat Error: ${err.message}`);
-        return null;
+      log.error(`AI Chat Error: ${err.message}`);
+      return null;
     }
-};
+  };
+  
 
 const aiVoice = async (text, voiceNotesDir) => {
     return new Promise((resolve, reject) => {
@@ -52,7 +69,7 @@ const aiVoice = async (text, voiceNotesDir) => {
 
         gtts.save(mp3Path, (err) => {
             if (err) {
-                logger.error(`gTTS Error: ${err}`);
+                log.error(`gTTS Error: ${err}`);
                 return reject(err);
             }
             ffmpeg(mp3Path)
@@ -64,7 +81,7 @@ const aiVoice = async (text, voiceNotesDir) => {
                     resolve(opusPath);
                 })
                 .on('error', (err) => {
-                    logger.error(`FFmpeg Error: ${err}`);
+                    log.error(`FFmpeg Error: ${err}`);
                     reject(err);
                 })
                 .save(opusPath);

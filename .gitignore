@@ -1,5 +1,7 @@
 /node_modules
+/logs
 .env
 /.wwebjs_cache
+/.wwebjs_auth
 /src/voice_notes
-/src/Tomato_Image_Model
+/src/utils/model
