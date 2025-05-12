@@ -1,5 +1,6 @@
 // services/translate.js
 const axios = require("axios");
+const log = require("../utils/logger");
 
 const LIBRE_TRANSLATE_URL = "https://libretranslate.de"; // public instance
 
@@ -20,7 +21,7 @@ async function detectLanguage(text) {
     const detected = res.data[0]?.language || "en";
     return detected;
   } catch (err) {
-    console.error("Language detection failed:", err.message);
+    log.error("Language detection failed:", err.message);
     return "en"; // fallback
   }
 }
@@ -36,7 +37,7 @@ async function translateText(text, fromLang, toLang) {
 
     return res.data.translatedText;
   } catch (err) {
-    console.error("Translation failed:", err.message);
+    log.error("Translation failed:", err.message);
     return text; // fallback to original text
   }
 }

@@ -19,7 +19,7 @@ async function createClient() {
     const store = new MongoStore({
         mongoose: mongoose, // Pass the mongoose instance directly
     });
-   
+
     const client = new Client({
         authStrategy: new RemoteAuth({
             store: store,
@@ -31,39 +31,69 @@ async function createClient() {
         },
     });
 
+    // Handle QR code generation
     client.on('qr', (qr) => qrcode.generate(qr, { small: true }));
 
+    // Authenticated event
     client.on('authenticated', () => {
         log.info('✅ WhatsApp session authenticated.');
     });
 
+    // Authentication failure event
     client.on('auth_failure', (msg) => {
         log.error('❌ Authentication failure:', msg);
     });
 
+    // Client ready event
     client.on('ready', () => {
         log.info('🚀 WhatsApp bot is ready.');
     });
 
+    // Remote session saved to MongoDB
     client.on('remote_session_saved', () => {
         log.info('💾 Remote session saved to MongoDB.');
     });
 
+    // Handle incoming messages
     client.on('message', (msg) => handleMessage(msg, client));
 
+    // Disconnected event - with retry logic
     client.on('disconnected', async (reason) => {
         log.warn(`⚠️ WhatsApp client was disconnected. Reason: ${reason}`);
 
-        try {
-            log.info('♻️ Reinitializing WhatsApp client...');
-            await client.destroy(); // Properly clean up old client
-            await client.initialize(); // Reinitialize client
-        } catch (err) {
-            log.error('Failed to reinitialize client:', err);
-        }
+        // Retry connection logic
+        let retryCount = 0;
+        const maxRetries = 5;  // Limit the number of retries
+        const retryDelay = 2000; // 2 seconds between retries
+
+        const reconnect = async () => {
+            if (retryCount < maxRetries) {
+                retryCount++;
+                log.info(`🔄 Reconnection attempt ${retryCount} of ${maxRetries}...`);
+
+                try {
+                    // Destroy the old client and reinitialize
+                    await client.destroy();
+                    await client.initialize(); // Reinitialize client
+
+                    log.info('💡 Reconnected to WhatsApp client!');
+                } catch (err) {
+                    log.error('⚠️ Failed to reconnect:', err);
+                    setTimeout(reconnect, retryDelay * retryCount); // Exponential backoff (increase delay with each retry)
+                }
+            } else {
+                log.error('⚠️ Maximum reconnection attempts reached. Please check the server or network.');
+            }
+        };
+
+        reconnect(); // Trigger the reconnection attempts
     });
 
-    await client.initialize(); // Initialize the client
+    try {
+        await client.initialize(); // Initialize the client
+    } catch (err) {
+        log.error('❌ Failed to initialize WhatsApp client:', err);
+    }
 
     return client;
 }

@@ -1,7 +1,7 @@
 const agriKeywords = [
     "plant", "farming", "farm", "agriculture", "soil", "crop", "harvest",
     "fertilizer", "compost", "greenhouse", "irrigation", "pesticide",
-    "disease", "germination", "seeds", "livestock", "tractor", "agronomy",
+    "disease", "germination", "seeds", "tractor", "agronomy",
     "climate", "weather", "yield", "weeding", "organic",
   ];
   

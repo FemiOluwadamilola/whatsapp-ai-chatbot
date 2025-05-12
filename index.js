@@ -1,8 +1,16 @@
+const log = require('./src/utils/logger'); 
+
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  log.error('Uncaught Exception:', err);
+});
+
 const mongoose = require('mongoose');
 const createClient = require('./src/bot/client');
 const dbConnection = require('./src/configs/DbConfig'); 
-const log = require('./src/utils/logger'); 
-
 
 async function startApp() {
     try {
