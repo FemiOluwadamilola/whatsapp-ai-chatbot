@@ -8,9 +8,11 @@ process.on('uncaughtException', (err) => {
   log.error('Uncaught Exception:', err);
 });
 
+const express = require('express');
 const mongoose = require('mongoose');
 const createClient = require('./src/bot/client');
 const dbConnection = require('./src/configs/DbConfig'); 
+const app = express();
 
 async function startApp() {
     try {
@@ -25,4 +27,12 @@ async function startApp() {
     }
 }
 
-startApp();
+async function startServer() {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        log.info(`Server is running on port ${PORT}`);
+        startApp();
+    });
+}
+
+startServer();
