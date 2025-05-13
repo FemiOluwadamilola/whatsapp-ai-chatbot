@@ -19,7 +19,7 @@ const isAgricultureRelatedAI = async (text) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a topic classifier. Respond with "yes" if the message is about agriculture or planting. Otherwise respond with "no".'
+            content: 'You are a topic classifier. Respond with "yes" if the message is about planting. Otherwise respond with "no".'
           },
           {
             role: 'user',

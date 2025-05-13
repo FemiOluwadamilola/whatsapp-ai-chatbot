@@ -6,7 +6,7 @@ const getWeatherForecast = require("../../services/weather");
 const extractLocation = require("../../utils/extractLocation");
 const handleImage = require("./imageHandler");
 const handleAudio = require("./audioHandler");
-const { getMarketPriceFromGPT } = require("../../services/marketPriceAI");
+const getMarketPriceFromGPT = require("../../services/marketPrice");
 const containsAgriKeyword = require("../../utils/containsAgriKeyword");
 const log = require("../../utils/logger");
 
@@ -43,7 +43,7 @@ const handleMessage = async (msg, client) => {
       const buffer = Buffer.from(media.data, "base64");
 
       // image prediction handler
-       if (media.mimetype.includes("image")) {
+      if (media.mimetype.includes("image")) {
         return await handleImage(buffer, msg);
       }
 
@@ -57,8 +57,6 @@ const handleMessage = async (msg, client) => {
 
       return msg.reply("❌ Unsupported media type.");
     }
-
-
 
     const contact = await msg.getContact();
 
@@ -173,12 +171,12 @@ const handleMessage = async (msg, client) => {
 
     // 💰 Fetch Market prices
     const priceIntentRegex =
-      /\b(price of|market price|current price|cost of|how much is|going rate for|what's the price of|latest price of)\s+([\w\s]+?)(?:\s+in\s+([\w\s]+))?\b/i;
+      /\b(?:price of|market price of|current price of|cost of|how much is|going rate for|what(?:'s| is) the price of|latest price of)\s+([\w\s]+?)(?:\s+in\s+([\w\s]+))?\b/i;
 
     if (priceIntentRegex.test(userText)) {
       const match = userText.match(priceIntentRegex);
-      const cropRaw = match?.[2]?.trim();
-      let location = match?.[3]?.trim();
+      const cropRaw = match?.[1]?.trim(); // Correct group for crop
+      let location = match?.[2]?.trim(); // Correct group for location
 
       if (!cropRaw) {
         return msg.reply(
@@ -186,10 +184,10 @@ const handleMessage = async (msg, client) => {
         );
       }
 
-      const crop = cropRaw.split(" ")[0]; // Try to isolate actual crop name
+      const crop = cropRaw.toLowerCase(); // Don't split or truncate
 
       if (!location) {
-        location = await extractLocation(userText, context);
+        location = await extractLocation(userText, context); // fallback extraction
       }
 
       if (!location) {
