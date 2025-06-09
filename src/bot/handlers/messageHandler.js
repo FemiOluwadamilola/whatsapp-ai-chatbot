@@ -5,10 +5,11 @@ const { getFarmerByPhone, createFarmer } = require("../../services/memory");
 const getWeatherForecast = require("../../services/weather");
 const extractLocation = require("../../utils/extractLocation");
 const handleImage = require("./imageHandler");
-const handleAudio = require("./audioHandler");
+const handleAudio = require("./handleVoiceNote");
 const getMarketPriceFromGPT = require("../../services/marketPrice");
 const containsAgriKeyword = require("../../utils/containsAgriKeyword");
 const log = require("../../utils/logger");
+// const alertAdmin = require("../../utils/alertAdmin");
 
 const handleMessage = async (msg, client) => {
   try {
@@ -219,6 +220,7 @@ const handleMessage = async (msg, client) => {
     await msg.reply(aiResponse);
   } catch (err) {
     log.error(`Unhandled Error: ${err.message}`);
+    // await alertAdmin(`🚨 Unhandled Error:\n${err.stack || err.message}`);
     await msg.reply("❌ Something went wrong while handling your request.");
   }
 };

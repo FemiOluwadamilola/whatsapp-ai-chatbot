@@ -4,8 +4,10 @@ const qrcode = require('qrcode-terminal');
 const mongoose = require('mongoose');
 const { ensureDirExists, cleanOldFiles } = require('../utils/fileUtils');
 const { handleMessage } = require('./handlers/messageHandler');
+const { setClient } = require("./clientManager");
 const path = require('path');
 const log = require('../utils/logger');
+const alertAdmin = require('../utils/alertAdmin');
 
 // Ensure voice notes directory exists
 const voiceNotesDir = path.join(__dirname, '../voice_notes');
@@ -60,6 +62,7 @@ async function createClient() {
     // Disconnected event - with retry logic
     client.on('disconnected', async (reason) => {
         log.warn(`⚠️ WhatsApp client was disconnected. Reason: ${reason}`);
+        await alertAdmin(`⚠️ WhatsApp client was disconnected. Reason: ${reason}`);
 
         // Retry connection logic
         let retryCount = 0;
@@ -83,6 +86,7 @@ async function createClient() {
                 }
             } else {
                 log.error('⚠️ Maximum reconnection attempts reached. Please check the server or network.');
+               await alertAdmin('⚠️ Maximum reconnection attempts reached. Please check the server or network.');
             }
         };
 
@@ -95,6 +99,7 @@ async function createClient() {
         log.error('❌ Failed to initialize WhatsApp client:', err);
     }
 
+    setClient(client); // Store the client instance for later use
     return client;
 }
 
